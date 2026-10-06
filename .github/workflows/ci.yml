@@ -1,0 +1,150 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend (build, unit + integration, coverage gate)
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: spendio_test
+          MYSQL_USER: spendio
+          MYSQL_PASSWORD: spendio
+        ports:
+          - 3307:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -uroot -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=30
+    env:
+      SPENDIO_TEST_DB_URL: jdbc:mysql://localhost:3307/spendio_test?createDatabaseIfNotExist=true&characterEncoding=UTF-8&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&useSSL=false&allowPublicKeyRetrieval=true
+      SPENDIO_TEST_DB_USERNAME: root
+      SPENDIO_TEST_DB_PASSWORD: root
+      SPENDIO_JWT_SECRET: ci-only-signing-secret-that-is-long-enough-0123456789
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Verify (compile, unit + integration tests, ArchUnit, coverage gate)
+        working-directory: backend
+        run: ./mvnw -B --no-transfer-progress verify
+
+      - name: Upload Surefire/Failsafe reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-reports
+          path: backend/target/*-reports/
+          if-no-files-found: ignore
+
+      - name: Upload JaCoCo report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend/target/site/jacoco/
+          if-no-files-found: ignore
+
+  frontend:
+    name: Frontend (lint, type-check, test, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Unit + component tests
+        run: npm run test:run -- --coverage
+
+      - name: Build
+        run: npm run build
+
+  containers:
+    name: Container images build
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          push: false
+          tags: spendio/backend:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          push: false
+          tags: spendio/frontend:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  compose-smoke:
+    name: docker compose smoke test
+    runs-on: ubuntu-latest
+    needs: [containers]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and start the stack
+        run: docker compose up -d --build --wait
+
+      - name: Backend health
+        run: |
+          curl -fsS http://localhost:8080/actuator/health | tee /tmp/health.json
+          grep -q '"status":"UP"' /tmp/health.json
+
+      - name: Stack logs on failure
+        if: failure()
+        run: docker compose logs --tail 400
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v

@@ -1,0 +1,13 @@
+spring:
+  datasource:
+    url: ${SPENDIO_TEST_DB_URL:jdbc:mysql://localhost:3307/spendio_test?createDatabaseIfNotExist=true&characterEncoding=UTF-8&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${SPENDIO_TEST_DB_USERNAME:root}
+    password: ${SPENDIO_TEST_DB_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+logging:
+  level:
+    root: WARN
+    com.spendio: INFO

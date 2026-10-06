@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<included>
+    <appender name="JSON_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <customFields>{"application":"spendio"}</customFields>
+            <decorator class="net.logstash.logback.mask.MaskingJsonGeneratorDecorator">
+                <defaultMask>[masked]</defaultMask>
+                <paths>password,newPassword,currentPassword,token,accessToken,refreshToken,refreshTokenHash,authorization,secret,apiKey,otp,resetToken</paths>
+                <valueMask>
+                    <value>(?i)("?(?:password|newPassword|currentPassword|token|accessToken|refreshToken|refreshTokenHash|authorization|secret|apiKey|otp|resetToken)"?\s*[:=]\s*)"?[\w\-./+=:]+"?</value>
+                    <mask>$1[masked]</mask>
+                </valueMask>
+                <valueMask>
+                    <value>(?i)(Bearer\s+)[A-Za-z0-9\-._~+/]+=*</value>
+                    <mask>$1[masked]</mask>
+                </valueMask>
+            </decorator>
+        </encoder>
+    </appender>
+    <root level="INFO">
+        <appender-ref ref="JSON_CONSOLE"/>
+    </root>
+</included>

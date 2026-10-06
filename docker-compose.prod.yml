@@ -1,0 +1,48 @@
+# ---------------------------------------------------------------------------
+# SpendIO production-shaped stack (ARCHITECTURE.md Phase 0 / Phase 16)
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Expects a real `.env` with SPENDIO_JWT_SECRET and DB credentials.
+# ---------------------------------------------------------------------------
+services:
+  mysql:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1g
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  backend:
+    restart: always
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1g
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  frontend:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"

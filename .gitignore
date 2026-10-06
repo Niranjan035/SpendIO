@@ -1,0 +1,54 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.iml
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Node
+node_modules/
+dist/
+coverage/
+.vite/
+*.tsbuildinfo
+frontend/test-results/
+frontend/playwright-report/
+frontend/playwright/.cache/
+
+# Maven / Java
+backend/target/
+!.mvn/wrapper/maven-wrapper.jar
+*.log
+dependency-reduced-pom.xml
+
+# Testcontainers / local data
+.testcontainers/
+mysql-data/
+
+# Logs & reports
+*.log
+logs/
+pids/
+*.pid
+*.seed
+.nyc_output/
+
+# Coverage
+coverage.xml
+*.exec
+jacoco.exec
+
+# Misc build output
+build/
+tmp/
+.temp/

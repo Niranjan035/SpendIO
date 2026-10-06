@@ -1,0 +1,95 @@
+# ---------------------------------------------------------------------------
+# SpendIO local development stack (ARCHITECTURE.md Phase 0)
+#
+#   docker compose up --build
+#   -> backend  http://localhost:8080  (/actuator/health)
+#   -> frontend http://localhost:5173
+#   -> mailpit  http://localhost:8025
+#   -> mysql    localhost:3306
+# ---------------------------------------------------------------------------
+name: spendio
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-spendio}
+      MYSQL_USER: ${MYSQL_USER:-spendio}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-spendio}
+      TZ: UTC
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --sql-mode=STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION
+      - --default-time-zone=+00:00
+      - --binlog-expire-logs-seconds=604800
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-root}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web UI
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8025/api/v1/info"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPENDIO_DB_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-spendio}?createDatabaseIfNotExist=true&characterEncoding=UTF-8&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&useSSL=false&allowPublicKeyRetrieval=true
+      SPENDIO_DB_USERNAME: ${MYSQL_USER:-spendio}
+      SPENDIO_DB_PASSWORD: ${MYSQL_PASSWORD:-spendio}
+      SPENDIO_JWT_SECRET: ${SPENDIO_JWT_SECRET:-local-development-only-secret-not-for-production-0123456789abcdef}
+      SPENDIO_CORS_ALLOWED_ORIGINS: ${SPENDIO_CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
+      SPENDIO_MAIL_HOST: mailpit
+      SPENDIO_MAIL_PORT: 1025
+    ports:
+      - "${SERVER_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+
+  frontend:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "5173:80"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+volumes:
+  mysql-data:
