@@ -13,7 +13,7 @@ COPY . .
 ENV VITE_API_BASE_URL=/api/v1
 RUN npm run build
 
-FROM nginx:1.27-alpine AS runtime
+FROM nginx:1.31-alpine AS runtime
 # Rendered by the image entrypoint; override per environment.
 ENV BACKEND_UPSTREAM=http://backend:8080
 # The image entrypoint runs envsubst over /etc/nginx/templates/*.template.
