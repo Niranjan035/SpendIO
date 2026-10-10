@@ -53,7 +53,7 @@ jobs:
 
       - name: Upload Surefire/Failsafe reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-test-reports
           path: backend/target/*-reports/
@@ -61,7 +61,7 @@ jobs:
 
       - name: Upload JaCoCo report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-coverage
           path: backend/target/site/jacoco/
@@ -135,7 +135,7 @@ jobs:
 
       - name: Upload backup artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: db-backup-drill
           path: backups/*.sql.gz
