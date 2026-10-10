@@ -1,6 +1,6 @@
 package com.spendio.support;
 
-import org.testcontainers.containers.MySQLContainer;
+import org.testcontainers.mysql.MySQLContainer;
 
 /**
  * One {@code mysql:8.4} container per JVM, started lazily by {@link MySqlTestSupport}
@@ -8,7 +8,7 @@ import org.testcontainers.containers.MySQLContainer;
  */
 public final class MySqlTestContainer {
 
-    private static MySQLContainer<?> container;
+    private static MySQLContainer container;
 
     static {
         Runtime.getRuntime().addShutdownHook(new Thread(MySqlTestContainer::stop, "test-mysql-shutdown"));
@@ -19,7 +19,7 @@ public final class MySqlTestContainer {
 
     static synchronized MySqlTestSupport.DataSourceInfo start() {
         if (container == null) {
-            container = new MySQLContainer<>("mysql:8.4")
+            container = new MySQLContainer("mysql:8.4")
                     .withDatabaseName(MySqlTestSupport.DATABASE)
                     .withUsername("spendio")
                     .withPassword("spendio");

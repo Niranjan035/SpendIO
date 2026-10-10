@@ -1,33 +1,80 @@
 # ---------------------------------------------------------------------------
-# SpendIO production-shaped stack (ARCHITECTURE.md Phase 0 / Phase 16)
+# SpendIO production overlay (ARCHITECTURE.md Phase 16).
 #
+#   cp .env.example .env      # fill in real secrets first
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 #
-# Expects a real `.env` with SPENDIO_JWT_SECRET and DB credentials.
+# Adds: prod Spring profile, binary-log/PITR config, restart policies, resource
+# limits, log rotation and read-only-config mounts. All secrets come from `.env`;
+# the `${VAR:?msg}` guards fail fast when one is missing.
 # ---------------------------------------------------------------------------
 services:
   mysql:
     restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in .env}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-spendio}
+      MYSQL_USER: ${MYSQL_USER:-spendio}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD in .env}
+    # PITR settings (binlog enabled) + tuning; see infra/mysql/my.cnf.
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./infra/mysql/my.cnf:/etc/mysql/conf.d/zz-spendio.cnf:ro
+    # C1: never publish MySQL on the host; the backend reaches it over the
+    # project's internal network only.
+    ports: !reset []
     deploy:
       resources:
         limits:
           cpus: "2.0"
           memory: 1g
+        reservations:
+          memory: 512m
     logging:
       driver: json-file
       options:
         max-size: "10m"
         max-file: "5"
 
+  # C1: Mailpit is a development-only helper. Putting it under a never-activated
+  # profile excludes it from the production project while leaving the dev command
+  # (`docker compose up --build`, base file only) unchanged.
+  mailpit:
+    profiles: ["dev"]
+
   backend:
     restart: always
+    # C1: the backend is reachable only by the frontend proxy on the internal
+    # network; never publish it on the host.
+    ports: !reset []
+    # C1: Mailpit is excluded in production, so the dev dependency is optional.
+    depends_on:
+      mailpit:
+        condition: service_started
+        required: false
     environment:
       SPRING_PROFILES_ACTIVE: prod
+      SPENDIO_DB_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-spendio}?createDatabaseIfNotExist=true&characterEncoding=UTF-8&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&useSSL=false&allowPublicKeyRetrieval=true
+      SPENDIO_DB_USERNAME: ${MYSQL_USER:-spendio}
+      SPENDIO_DB_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD in .env}
+      SPENDIO_JWT_SECRET: ${SPENDIO_JWT_SECRET:?set SPENDIO_JWT_SECRET in .env}
+      SPENDIO_JWT_KID: ${SPENDIO_JWT_KID:-v1}
+      SPENDIO_CORS_ALLOWED_ORIGINS: ${SPENDIO_CORS_ALLOWED_ORIGINS:?set SPENDIO_CORS_ALLOWED_ORIGINS in .env}
+      SPENDIO_WEB_BASE_URL: ${SPENDIO_WEB_BASE_URL:?set SPENDIO_WEB_BASE_URL in .env}
+      SPENDIO_MAIL_HOST: ${SPENDIO_MAIL_HOST:?set SPENDIO_MAIL_HOST in .env}
+      SPENDIO_MAIL_PORT: ${SPENDIO_MAIL_PORT:-587}
+      SPENDIO_MAIL_USERNAME: ${SPENDIO_MAIL_USERNAME:-}
+      SPENDIO_MAIL_PASSWORD: ${SPENDIO_MAIL_PASSWORD:-}
+      SPENDIO_MAIL_FROM: ${SPENDIO_MAIL_FROM:?set SPENDIO_MAIL_FROM in .env}
+      SPENDIO_DB_POOL_SIZE: ${SPENDIO_DB_POOL_SIZE:-20}
+      JAVA_OPTS: ${JAVA_OPTS:--XX:+ExitOnOutOfMemoryError}
     deploy:
       resources:
         limits:
           cpus: "2.0"
           memory: 1g
+        reservations:
+          memory: 512m
     logging:
       driver: json-file
       options:
@@ -36,6 +83,13 @@ services:
 
   frontend:
     restart: always
+    environment:
+      # nginx template variable; the compose service DNS name by default.
+      BACKEND_UPSTREAM: ${BACKEND_UPSTREAM:-http://backend:8080}
+    # C1: the single intended public entry point. Bound to loopback by default so
+    # only the host TLS terminator can reach it; no DB/backend/mail ports are exposed.
+    ports: !override
+      - "${FRONTEND_BIND_ADDRESS:-127.0.0.1}:${FRONTEND_HTTP_PORT:-8080}:80"
     deploy:
       resources:
         limits:

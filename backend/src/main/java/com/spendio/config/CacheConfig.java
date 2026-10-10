@@ -12,20 +12,27 @@ import org.springframework.context.annotation.Configuration;
  * In-process caches (ARCHITECTURE.md A.6): reference data stays hot for a release,
  * FX rates ride out provider outages, and analytics answers are short-lived.
  * Personal cache keys always include {@code userId} (invalidation happens in the modules).
+ *
+ * <p>Spring Boot's Actuator auto-instruments every cache on the {@link CacheManager}
+ * ({@code cache.size}, {@code cache.gets}, ...), so the metrics show up on the dashboards
+ * in {@code infra/monitoring/} without any manual registration here.
  */
 @Configuration
 public class CacheConfig {
 
-    static final String CURRENCIES = "currencies";
-    static final String FX_RATES = "fxRates";
-    static final String ANALYTICS = "analytics";
+    public static final String CURRENCIES = "currencies";
+    public static final String FX_RATES = "fxRates";
+    public static final String ANALYTICS = "analytics";
+
+    private static final Duration REFERENCE_TTL = Duration.ofHours(1);
+    private static final Duration ANALYTICS_TTL = Duration.ofSeconds(120);
 
     @Bean
     CacheManager cacheManager() {
         CaffeineCacheManager manager = new CaffeineCacheManager();
-        manager.registerCustomCache(CURRENCIES, buildCache(Duration.ofHours(1)));
-        manager.registerCustomCache(FX_RATES, buildCache(Duration.ofHours(1)));
-        manager.registerCustomCache(ANALYTICS, buildCache(Duration.ofSeconds(120)));
+        manager.registerCustomCache(CURRENCIES, buildCache(REFERENCE_TTL));
+        manager.registerCustomCache(FX_RATES, buildCache(REFERENCE_TTL));
+        manager.registerCustomCache(ANALYTICS, buildCache(ANALYTICS_TTL));
         return manager;
     }
 

@@ -67,6 +67,80 @@ jobs:
           path: backend/target/site/jacoco/
           if-no-files-found: ignore
 
+  backup-restore-drill:
+    name: Backup / restore drill (Phase 15 gate)
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: spendio
+        ports:
+          - 3308:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -uroot -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Warm up MySQL client availability
+        run: |
+          for i in $(seq 1 30); do
+            mysql -h 127.0.0.1 -P 3308 -uroot -proot -e 'SELECT 1' && break
+            sleep 2
+          done
+
+      - name: Seed a schema with real tables
+        run: |
+          mysql -h 127.0.0.1 -P 3308 -uroot -proot spendio <<'SQL'
+          CREATE TABLE users (id BIGINT PRIMARY KEY AUTO_INCREMENT, email VARCHAR(320));
+          CREATE TABLE accounts (id BIGINT PRIMARY KEY AUTO_INCREMENT, user_id BIGINT);
+          CREATE TABLE categories (id BIGINT PRIMARY KEY AUTO_INCREMENT, user_id BIGINT);
+          CREATE TABLE transactions (id BIGINT PRIMARY KEY AUTO_INCREMENT, user_id BIGINT);
+          CREATE TABLE budgets (id BIGINT PRIMARY KEY AUTO_INCREMENT, user_id BIGINT);
+          INSERT INTO users (email) VALUES ('drill@example.com');
+          SQL
+
+      - name: Backup
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: "3308"
+          DB_USER: root
+          DB_PASSWORD: root
+          DB_NAME: spendio
+          BACKUP_DIR: ./backups
+        run: bash infra/scripts/backup.sh
+
+      - name: Restore into a scratch schema and verify
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: "3308"
+          DB_USER: root
+          DB_PASSWORD: root
+          DB_NAME: spendio_restore
+          ALLOW_DROP: "1"
+        run: bash infra/scripts/restore.sh "$(ls -1 backups/*.sql.gz | head -n1)"
+
+      - name: Deep-compare the restored schema against the source
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: "3308"
+          DB_USER: root
+          DB_PASSWORD: root
+          TABLES_TO_CHECK: "users accounts categories transactions budgets"
+        run: bash infra/scripts/verify-restore.sh spendio spendio_restore
+
+      - name: Upload backup artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-drill
+          path: backups/*.sql.gz
+          if-no-files-found: warn
+
   frontend:
     name: Frontend (lint, type-check, test, build)
     runs-on: ubuntu-latest
@@ -99,32 +173,55 @@ jobs:
         run: npm run build
 
   containers:
-    name: Container images build
+    name: Container images build + vulnerability scan
     runs-on: ubuntu-latest
     needs: [backend, frontend]
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build backend image
+      - name: Build backend image (load)
         uses: docker/build-push-action@v6
         with:
           context: backend
           push: false
+          load: true
           tags: spendio/backend:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build frontend image
+      - name: Build frontend image (load)
         uses: docker/build-push-action@v6
         with:
           context: frontend
           push: false
+          load: true
           tags: spendio/frontend:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Trivy scan backend image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: spendio/backend:ci
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+
+      - name: Trivy scan frontend image
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: spendio/frontend:ci
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
 
   compose-smoke:
     name: docker compose smoke test
@@ -133,13 +230,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Validate production compose configuration
+        env:
+          MYSQL_ROOT_PASSWORD: validate-only
+          MYSQL_PASSWORD: validate-only
+          SPENDIO_JWT_SECRET: ci-only-signing-secret-that-is-long-enough-0123456789
+          SPENDIO_CORS_ALLOWED_ORIGINS: https://app.example.com
+          SPENDIO_WEB_BASE_URL: https://app.example.com
+          SPENDIO_MAIL_HOST: smtp.example.com
+          SPENDIO_MAIL_FROM: no-reply@example.com
+          SPENDIO_METRICS_SCRAPE_TOKEN: validate-only-scrape-token
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml config >/dev/null
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.monitoring.yml config >/dev/null
+
       - name: Build and start the stack
         run: docker compose up -d --build --wait
 
-      - name: Backend health
-        run: |
-          curl -fsS http://localhost:8080/actuator/health | tee /tmp/health.json
-          grep -q '"status":"UP"' /tmp/health.json
+      - name: Post-deploy smoke test
+        run: BASE_URL=http://localhost:8080 bash infra/scripts/smoke-test.sh
+
+      - name: Frontend serves the SPA
+        run: curl -fsS http://localhost:5173/ | grep -qi '<div id="root"'
 
       - name: Stack logs on failure
         if: failure()

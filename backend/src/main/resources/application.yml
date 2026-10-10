@@ -1,6 +1,22 @@
 spring:
   application:
     name: spendio
+  # Authentication is a stateless JWT filter; the default in-memory user is never
+  # reachable (form login / basic disabled) and only logs a random "generated
+  # security password" at startup, so remove it.
+  autoconfigure:
+    exclude: org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
+  mail:
+    host: ${SPENDIO_MAIL_HOST:localhost}
+    port: ${SPENDIO_MAIL_PORT:1025}
+    username: ${SPENDIO_MAIL_USERNAME:}
+    password: ${SPENDIO_MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: false
+          starttls:
+            enable: false
   profiles:
     default: dev
   datasource:
@@ -19,6 +35,9 @@ spring:
       ddl-auto: validate
     properties:
       hibernate:
+        # quotes identifiers that are SQL keywords (e.g. csv_import_rows.row_number,
+        # reserved by MySQL 8) in generated SQL
+        auto_quote_keyword: true
         jdbc:
           time_zone: UTC
   flyway:
@@ -55,6 +74,18 @@ management:
     health:
       probes:
         enabled: true
+  health:
+    # SMTP reachability must not mark the app DOWN: mail is asynchronous and the
+    # aggregate /actuator/health backs the container HEALTHCHECK.
+    mail:
+      enabled: false
+  metrics:
+    distribution:
+      # p95/p99 latency for the per-endpoint SLOs (ARCHITECTURE.md Phase 15).
+      percentiles-histogram:
+        http.server.requests: true
+      slo:
+        http.server.requests: 50ms,100ms,250ms,500ms,1s,2s
 
 info:
   app:
@@ -62,6 +93,11 @@ info:
     description: Personal finance and expense tracker
 
 spendio:
+  metrics:
+    # C2: shared bearer token Prometheus presents to scrape /actuator/prometheus.
+    # Blank (default) keeps the endpoint authenticated; set SPENDIO_METRICS_SCRAPE_TOKEN
+    # together with the monitoring overlay to enable the private scrape.
+    scrape-token: ${SPENDIO_METRICS_SCRAPE_TOKEN:}
   web:
     cors:
       allowed-origins:
@@ -80,5 +116,40 @@ spendio:
         - Accept
         - X-XSRF-TOKEN
         - X-Request-Id
+        - Idempotency-Key
       allow-credentials: true
       max-age: 3600
+  security:
+    jwt:
+      # Dev default only - prod and docker profiles require SPENDIO_JWT_SECRET (>= 32 chars).
+      secret: ${SPENDIO_JWT_SECRET:dev-only-spendio-jwt-secret-change-me-0123456789}
+      kid: ${SPENDIO_JWT_KID:v1}
+      access-token-ttl: 15m
+      refresh-token-ttl: 720h
+      remember-me-refresh-ttl: 2160h
+      absolute-session-ttl: 2160h
+    cookie:
+      name: spendio_rt
+      path: /api/v1/auth
+      secure: false
+    rate-limit:
+      window: 5m
+      sensitive-requests: 10
+      auth-requests: 60
+    password:
+      # K.1 P0 breach-list check (HIBP k-anonymity); fails open when unreachable.
+      breached-check-enabled: true
+      min-length: 10
+      max-length: 72
+  mail:
+    enabled: false
+    from: SpendIO <no-reply@spendio.local>
+    base-url: ${SPENDIO_WEB_BASE_URL:http://localhost:5173}
+  transactions:
+    # Reject business dates further ahead than this (ARCHITECTURE.md D.8: default +1 year).
+    max-future-days: 365
+  fx:
+    # Reference-rate provider (ARCHITECTURE.md D.5): defaults to Frankfurter (ECB, keyless)
+    # so multi-currency accounts work out of the box. Blank disables the HTTP client and
+    # reduces the app to manual rates only. Override with SPENDIO_FX_PROVIDER_URL.
+    provider-url: ${SPENDIO_FX_PROVIDER_URL:https://api.frankfurter.dev/v1}

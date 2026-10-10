@@ -8,3 +8,9 @@ management:
   endpoint:
     health:
       show-details: always
+
+# Mailpit in dev (docker-compose): messages land in the Mailpit UI on :8025.
+spendio:
+  mail:
+    enabled: true
+    from: SpendIO <no-reply@spendio.local>

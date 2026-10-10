@@ -11,3 +11,26 @@ logging:
   level:
     root: WARN
     com.spendio: INFO
+
+# Phase 2 tests: fixed signing key, generous auth rate limits so the shared
+# per-IP counters never trip while the suite runs; AuthSecurityTest overrides.
+spendio:
+  security:
+    jwt:
+      secret: spendio-test-only-jwt-secret-0123456789abcdef
+    rate-limit:
+      window: 5m
+      sensitive-requests: 10000
+      auth-requests: 10000
+    password:
+      breached-check-enabled: false
+  mail:
+    enabled: false
+  fx:
+    cache-enabled: false
+    on-demand-interval-seconds: 0
+    provider-url: ""
+  # Phase 8 tests: park the recurring executor on Jan 1 so it never fires mid-suite;
+  # the executor's job entry point is called directly instead.
+  recurring:
+    cron: "0 0 0 1 1 *"

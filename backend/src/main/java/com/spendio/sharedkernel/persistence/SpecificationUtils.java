@@ -25,8 +25,16 @@ public final class SpecificationUtils {
 
     /** Matches when {@code value} is null (a no-op filter for optional query params). */
     public static <T> Specification<T> equalIfPresent(String property, Object value) {
-        return (root, query, criteriaBuilder) ->
-                value == null ? criteriaBuilder.conjunction() : criteriaBuilder.equal(root.get(property), value);
+        return (root, query, criteriaBuilder) -> {
+            if (value == null) {
+                return criteriaBuilder.conjunction();
+            }
+            jakarta.persistence.criteria.Path<?> path = root;
+            for (String part : property.split("\\.")) {
+                path = path.get(part);
+            }
+            return criteriaBuilder.equal(path, value);
+        };
     }
 
     /** Inclusive date window, either bound optional. */

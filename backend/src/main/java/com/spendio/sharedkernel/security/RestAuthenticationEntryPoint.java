@@ -1,6 +1,6 @@
 package com.spendio.sharedkernel.security;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.spendio.sharedkernel.error.ErrorCode;
 import com.spendio.sharedkernel.error.GlobalExceptionHandler;
 import jakarta.servlet.http.HttpServletRequest;
@@ -31,10 +31,17 @@ public class RestAuthenticationEntryPoint implements AuthenticationEntryPoint {
     @Override
     public void commence(HttpServletRequest request, HttpServletResponse response,
             AuthenticationException authenticationException) throws IOException {
-        ErrorCode errorCode = authenticationException == null
-                || authenticationException instanceof InsufficientAuthenticationException
-                ? ErrorCode.AUTH_TOKEN_MISSING
-                : ErrorCode.AUTH_TOKEN_INVALID;
+        // The JWT filter records why a bearer token was rejected (expired vs invalid).
+        Object tokenError = request.getAttribute(JwtAuthenticationFilter.TOKEN_ERROR_ATTRIBUTE);
+        ErrorCode errorCode;
+        if (tokenError instanceof ErrorCode recorded) {
+            errorCode = recorded;
+        } else if (authenticationException == null
+                || authenticationException instanceof InsufficientAuthenticationException) {
+            errorCode = ErrorCode.AUTH_TOKEN_MISSING;
+        } else {
+            errorCode = ErrorCode.AUTH_TOKEN_INVALID;
+        }
 
         write(errorCode, request, response);
     }

@@ -1,0 +1,174 @@
+[
+  {
+    "name": "daily: consecutive days from the start date",
+    "frequency": "DAILY",
+    "startDate": "2026-06-01",
+    "intervalCount": 1,
+    "from": "2026-06-01",
+    "expected": ["2026-06-01", "2026-06-02", "2026-06-03", "2026-06-04", "2026-06-05"]
+  },
+  {
+    "name": "daily: mid-stream from date lands on the occurrence itself",
+    "frequency": "DAILY",
+    "startDate": "2026-06-01",
+    "intervalCount": 1,
+    "from": "2026-06-10",
+    "expected": ["2026-06-10", "2026-06-11", "2026-06-12", "2026-06-13", "2026-06-14"]
+  },
+  {
+    "name": "daily: interval 3 skips to the next multiple",
+    "frequency": "DAILY",
+    "startDate": "2026-06-01",
+    "intervalCount": 3,
+    "from": "2026-06-05",
+    "expected": ["2026-06-07", "2026-06-10", "2026-06-13"]
+  },
+  {
+    "name": "daily: from before the start date returns the start date",
+    "frequency": "DAILY",
+    "startDate": "2026-06-05",
+    "intervalCount": 1,
+    "from": "2026-06-01",
+    "expected": ["2026-06-05", "2026-06-06", "2026-06-07"]
+  },
+  {
+    "name": "daily: end date truncates the preview",
+    "frequency": "DAILY",
+    "startDate": "2026-06-01",
+    "endDate": "2026-06-03",
+    "intervalCount": 1,
+    "from": "2026-06-01",
+    "expected": ["2026-06-01", "2026-06-02", "2026-06-03"]
+  },
+  {
+    "name": "daily: nothing remains past the end date",
+    "frequency": "DAILY",
+    "startDate": "2026-06-01",
+    "endDate": "2026-06-03",
+    "intervalCount": 1,
+    "from": "2026-06-04",
+    "expected": []
+  },
+  {
+    "name": "weekends: a start on Saturday shifts to the following Monday",
+    "frequency": "DAILY",
+    "startDate": "2026-06-06",
+    "intervalCount": 1,
+    "skipWeekends": true,
+    "from": "2026-06-06",
+    "expected": ["2026-06-08", "2026-06-09", "2026-06-10", "2026-06-11", "2026-06-12"]
+  },
+  {
+    "name": "weekends: mid-week run skips Saturday and Sunday exactly once each",
+    "frequency": "DAILY",
+    "startDate": "2026-06-06",
+    "intervalCount": 1,
+    "skipWeekends": true,
+    "from": "2026-06-09",
+    "expected": ["2026-06-09", "2026-06-10", "2026-06-11", "2026-06-12", "2026-06-15"]
+  },
+  {
+    "name": "weekly: Monday rule whose anchor week precedes the start",
+    "frequency": "WEEKLY",
+    "startDate": "2026-06-03",
+    "intervalCount": 1,
+    "dayOfWeek": 1,
+    "from": "2026-06-03",
+    "expected": ["2026-06-08", "2026-06-15", "2026-06-22", "2026-06-29", "2026-07-06"]
+  },
+  {
+    "name": "weekly: no dayOfWeek keeps the start date weekday",
+    "frequency": "WEEKLY",
+    "startDate": "2026-06-03",
+    "intervalCount": 1,
+    "from": "2026-06-03",
+    "expected": ["2026-06-03", "2026-06-10", "2026-06-17", "2026-06-24", "2026-07-01"]
+  },
+  {
+    "name": "weekly: interval 2 doubles the gap",
+    "frequency": "WEEKLY",
+    "startDate": "2026-06-03",
+    "intervalCount": 2,
+    "from": "2026-06-10",
+    "expected": ["2026-06-17", "2026-07-01", "2026-07-15"]
+  },
+  {
+    "name": "weekends: a weekly Saturday rule lands on the preceding Friday",
+    "frequency": "WEEKLY",
+    "startDate": "2026-06-06",
+    "intervalCount": 1,
+    "dayOfWeek": 6,
+    "skipWeekends": true,
+    "from": "2026-06-06",
+    "expected": ["2026-06-12", "2026-06-19", "2026-06-26", "2026-07-03", "2026-07-10"]
+  },
+  {
+    "name": "monthly: day 31 clamps to February and never drifts to March",
+    "frequency": "MONTHLY",
+    "startDate": "2026-01-31",
+    "intervalCount": 1,
+    "dayOfMonth": 31,
+    "from": "2026-02-01",
+    "expected": ["2026-02-28", "2026-03-31", "2026-04-30", "2026-05-31", "2026-06-30"]
+  },
+  {
+    "name": "monthly: no dayOfMonth anchors on the start date's day",
+    "frequency": "MONTHLY",
+    "startDate": "2026-05-31",
+    "intervalCount": 1,
+    "from": "2026-06-01",
+    "expected": ["2026-06-30", "2026-07-31", "2026-08-31", "2026-09-30", "2026-10-31"]
+  },
+  {
+    "name": "monthly: interval 2 alternates months",
+    "frequency": "MONTHLY",
+    "startDate": "2026-01-15",
+    "intervalCount": 2,
+    "dayOfMonth": 15,
+    "from": "2026-03-01",
+    "expected": ["2026-03-15", "2026-05-15", "2026-07-15", "2026-09-15", "2026-11-15"]
+  },
+  {
+    "name": "monthly: from before the start returns the first real occurrence",
+    "frequency": "MONTHLY",
+    "startDate": "2026-06-05",
+    "intervalCount": 1,
+    "from": "2026-06-01",
+    "expected": ["2026-06-05", "2026-07-05", "2026-08-05", "2026-09-05", "2026-10-05"]
+  },
+  {
+    "name": "yearly: leap day clamps to Feb 28 and returns on the next leap year",
+    "frequency": "YEARLY",
+    "startDate": "2024-02-29",
+    "intervalCount": 1,
+    "from": "2025-01-01",
+    "expected": ["2025-02-28", "2026-02-28", "2027-02-28", "2028-02-29", "2029-02-28"]
+  },
+  {
+    "name": "yearly: interval 2 keeps the exact anniversary",
+    "frequency": "YEARLY",
+    "startDate": "2024-06-15",
+    "intervalCount": 2,
+    "from": "2025-06-01",
+    "expected": ["2026-06-15", "2028-06-15", "2030-06-15"]
+  },
+  {
+    "name": "custom: anchored on the target occurrence date",
+    "frequency": "CUSTOM",
+    "startDate": "2026-06-01",
+    "targetOccurrenceDate": "2026-06-10",
+    "intervalCount": 5,
+    "from": "2026-06-01",
+    "expected": ["2026-06-10", "2026-06-15", "2026-06-20", "2026-06-25", "2026-06-30"]
+  },
+  {
+    "name": "custom: end date bounds the interval walk",
+    "frequency": "CUSTOM",
+    "startDate": "2026-06-01",
+    "targetOccurrenceDate": "2026-06-10",
+    "endDate": "2026-06-20",
+    "intervalCount": 5,
+    "from": "2026-06-01",
+    "expected": ["2026-06-10", "2026-06-15", "2026-06-20"]
+  }
+]

@@ -1,0 +1,96 @@
+name: CD - Backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'infra/**'
+      - '.github/workflows/cd-backend.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: cd-backend-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/spendio-backend
+
+jobs:
+  publish:
+    name: Build and push backend image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=sha,format=long
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Rolling deploy + smoke test
+    runs-on: ubuntu-latest
+    needs: [publish]
+    # Enable by setting the repository variable DEPLOY_ENABLED=true and the
+    # DEPLOY_HOST / DEPLOY_USER / DEPLOY_SSH_KEY / SPENDIO_DEPLOY_URL secrets.
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd ${{ vars.DEPLOY_PATH || '/opt/spendio' }}
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull backend
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps backend
+            docker image prune -f
+
+      - name: Post-deploy smoke test
+        env:
+          BASE_URL: ${{ secrets.SPENDIO_DEPLOY_URL }}
+        run: bash infra/scripts/smoke-test.sh
+
+      - name: Roll back on failed smoke test
+        if: failure()
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd ${{ vars.DEPLOY_PATH || '/opt/spendio' }}
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps --force-recreate backend

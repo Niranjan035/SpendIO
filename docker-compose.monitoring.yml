@@ -1,0 +1,64 @@
+# ---------------------------------------------------------------------------
+# Optional monitoring overlay (ARCHITECTURE.md Phase 15/16).
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#     -f docker-compose.monitoring.yml up -d
+#   -> Prometheus http://localhost:9090
+#   -> Grafana    http://localhost:3000  (admin / ${GRAFANA_PASSWORD:-admin})
+#
+# Kept out of the default stack so the compose smoke test stays fast.
+# ---------------------------------------------------------------------------
+services:
+  backend:
+    environment:
+      # The scrape target is the compose service name.
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info,metrics,prometheus
+      # C2: the shared bearer token the private Prometheus scrape must present.
+      SPENDIO_METRICS_SCRAPE_TOKEN: ${SPENDIO_METRICS_SCRAPE_TOKEN:?set SPENDIO_METRICS_SCRAPE_TOKEN for Prometheus scraping}
+
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      SPENDIO_METRICS_SCRAPE_TOKEN: ${SPENDIO_METRICS_SCRAPE_TOKEN:?set SPENDIO_METRICS_SCRAPE_TOKEN for Prometheus scraping}
+    # C2: materialise the scrape token into a credentials file Prometheus reads.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        printf '%s' "$$SPENDIO_METRICS_SCRAPE_TOKEN" > /etc/prometheus/scrape-token
+        exec /bin/prometheus --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/prometheus --web.enable-lifecycle
+    volumes:
+      - ./infra/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/monitoring/alert.rules.yml:/etc/prometheus/alert.rules.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "${PROMETHEUS_BIND_ADDRESS:-127.0.0.1}:9090:9090"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  grafana:
+    image: grafana/grafana:11.5.0
+    restart: unless-stopped
+    depends_on:
+      prometheus:
+        condition: service_started
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./infra/monitoring/grafana-provisioning:/etc/grafana/provisioning:ro
+      - ./infra/monitoring/grafana-dashboard.json:/var/lib/grafana/dashboards/spendio-overview.json:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "${GRAFANA_BIND_ADDRESS:-127.0.0.1}:3000:3000"
+
+volumes:
+  prometheus-data:
+  grafana-data:

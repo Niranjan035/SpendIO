@@ -1,6 +1,6 @@
 package com.spendio.sharedkernel.security;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.spendio.sharedkernel.error.ErrorCode;
 import com.spendio.sharedkernel.error.GlobalExceptionHandler;
 import jakarta.servlet.http.HttpServletRequest;

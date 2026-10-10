@@ -419,6 +419,7 @@ backend/
     │   │   │   │   ├── RecurringQueryService.java
     │   │   │   │   ├── RecurringExecutionService.java
     │   │   │   │   └── RecurrenceScheduleCalculator.java
+    │   │   │   │   ├── notifier/RecurringDueNotifier.java  <-- rolls notifications (recurring.repository + notification SPI)
     │   │   │   │   ├── domain/{RecurringTransaction,RecurringRun}.java
     │   │   │   │   ├── repository/{RecurringTransactionRepository,RecurringRunRepository}.java
     │   │   │   │   ├── spec/{RecurringSpecifications,RecurringFilter}.java
@@ -431,6 +432,7 @@ backend/
     │   │   │   │   ├── controller/{BudgetController,BudgetAlertController}.java
     │   │   │   │   ├── service/{BudgetService,BudgetQueryService,BudgetProgressService,
     │   │   │   │           BudgetAlertService,BudgetRolloverJob}.java
+    │   │   │   │   ├── notifier/BudgetAlertNotifier.java  <-- rolls notifications (budgets.repository + notification SPI)
     │   │   │   │   ├── domain/{Budget,BudgetAlert}.java
     │   │   │   │   ├── repository/{BudgetRepository,BudgetAlertRepository}.java
     │   │   │   │   ├── spec/{BudgetSpecifications,BudgetFilter}.java
@@ -442,6 +444,7 @@ backend/
     │   │   │   │   ├── controller/{GoalController,GoalContributionController}.java
     │   │   │   │   ├── service/{GoalService,GoalQueryService,GoalContributionService,
     │   │   │   │           GoalMilestoneNotifier}.java
+    │   │   │   │   ├── notifier/GoalReminderNotifier.java  <-- rolls notifications (goals.repository + notification SPI)
     │   │   │   │   ├── domain/{Goal,GoalContribution}.java
     │   │   │   │   ├── repository/{GoalRepository,GoalContributionRepository}.java
     │   │   │   │   ├── spec/{GoalSpecifications,GoalFilter}.java
@@ -480,7 +483,7 @@ backend/
     │   │   │   │   ├── NotificationService.java
     │   │   │   │   ├── NotificationPreferenceService.java
     │   │   │   │   ├── NotificationDispatcher.java
-    │   │   │   │   └── notifiers/{BudgetAlertNotifier,GoalReminderNotifier,RecurringDueNotifier,
+    │   │   │   │   └── notifiers/{GoalMilestoneNotificationListener,RecurringFailedNotifier,
     │   │   │   │                 ImportCompletionNotifier,SystemNotifier}.java
     │   │   │   │   ├── domain/{Notification,NotificationPreference}.java
     │   │   │   │   ├── repository/{NotificationRepository,NotificationPreferenceRepository}.java
@@ -870,7 +873,7 @@ routes/ -> services/ -> sharedkernel/
                  -> goals/      -> transactions, accounts, notification(SPI)
                  -> imports/    -> transactions, accounts, categories, recurring(no)
                  -> notifications/ -> users
-                 -> analytics/  -> transactions(read-only queries), budgets, goals, accounts(read-only)
+                 -> analytics/  -> transactions(read-only), budgets, goals, accounts(read-only), recurring(read-only)
                  -> audit/
 
 FORBIDDEN (ArchUnit rule):
@@ -878,7 +881,9 @@ FORBIDDEN (ArchUnit rule):
   * controllers -> repositories
   * any package -> ...domain.entity            (entities never leave their module)
   * transactions -> budgets | goals           (no ledger -> planning back-reference)
-  * analytics -> ...service (write side)       (read-only)
+  * analytics -> ...service (write side)       (read-only; the only write it may trigger is
+                                                 the account-snapshot read-through that feeds
+                                                 net-worth history - never a ledger write)
 ```
 
 ---
@@ -1526,9 +1531,10 @@ UPLOADED -> PARSING -> PARSED -> MAPPING_REQUIRED -> VALIDATING -> READY -> PROC
 
 **Service**
 - `NotificationService.create(userId, type, severity, title, body, entity, actionUrl, payload, dedupeKey)` — the single write path; honours `NotificationPreference` (a disabled channel means the row is not created / not emailed); the `dedupe_key` unique index makes it idempotent.
-- `NotificationDispatcher` — routes to `IN_APP` (row in the table) and/or `EMAIL` (`MailService`, async). Notifications never roll back the business transaction that produced them.
+- `NotificationDispatcher` — routes to `IN_APP` (row in the table) and/or `EMAIL` (`NotificationMailPort` in sharedkernel, implemented by `com.spendio.mail.MailService`, async). Notifications never roll back the business transaction that produced them. The port keeps the B.3 edge `notifications/ -> users` without adding a `notifications/ -> mail/` edge.
 - `NotificationPreferenceService.get/update`.
-- Notifiers: `BudgetAlertNotifier`, `GoalReminderNotifier` (target date within `goal_reminder_days`), `RecurringDueNotifier` (due within `recurring_reminder_days`), `RecurringFailedNotifier`, `ImportCompletionNotifier`, `SystemNotifier`.
+- Notifiers that scan source-module tables live in their source modules and call the notification SPI (matching B.3 `budgets/goals/recurring -> notification(SPI)`): `budgets.notifier.BudgetAlertNotifier` (threshold breach), `goals.notifier.GoalReminderNotifier` (target date within `goal_reminder_days`), `recurring.notifier.RecurringDueNotifier` (due within `recurring_reminder_days`).
+- Event-driven notifiers live in `notifications/notifier` (react to sharedkernel events only): `GoalMilestoneNotificationListener`, `RecurringFailedNotifier`, `ImportCompletionNotifier`, `SystemNotifier`.
 - Delivery to the client: SSE endpoint (`GET /api/v1/notifications/stream`) with polling fallback; the unread count is cached client-side.
 
 **Exceptions:** `NOTIFICATION_NOT_FOUND`, `NOTIFICATION_ALREADY_READ`.

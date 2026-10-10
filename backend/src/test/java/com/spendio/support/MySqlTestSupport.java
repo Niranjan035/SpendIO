@@ -18,14 +18,11 @@ import org.testcontainers.DockerClientFactory;
  */
 public final class MySqlTestSupport {
 
-    private static final Logger log = LoggerFactory.getLogger(MySqlTestSupport.class);
-
     static final String DATABASE = "spendio_test";
 
-    private static final DataSourceInfo RESOLVED = resolve();
+    private static final Logger log = LoggerFactory.getLogger(MySqlTestSupport.class);
 
-    private MySqlTestSupport() {
-    }
+    private static final DataSourceInfo RESOLVED = resolve();
 
     public static boolean available() {
         return RESOLVED != null;

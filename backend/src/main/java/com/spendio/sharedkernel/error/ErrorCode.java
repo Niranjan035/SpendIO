@@ -14,6 +14,8 @@ public enum ErrorCode {
     BAD_REQUEST(HttpStatus.BAD_REQUEST, "Bad request"),
     MALFORMED_REQUEST(HttpStatus.BAD_REQUEST, "Malformed request"),
     VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "Validation failed"),
+    INVALID_RESET_TOKEN(HttpStatus.BAD_REQUEST, "Reset token is invalid or expired"),
+    INVALID_VERIFICATION_TOKEN(HttpStatus.BAD_REQUEST, "Verification token is invalid or expired"),
 
     // --- 401 -----------------------------------------------------------------
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "Unauthorized"),
@@ -31,6 +33,9 @@ public enum ErrorCode {
 
     // --- 404 -----------------------------------------------------------------
     RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "Resource not found"),
+    SESSION_NOT_FOUND(HttpStatus.NOT_FOUND, "Session not found"),
+    USER_NOT_FOUND(HttpStatus.NOT_FOUND, "User not found"),
+    CURRENCY_NOT_FOUND(HttpStatus.NOT_FOUND, "Currency not found"),
     ACCOUNT_NOT_FOUND(HttpStatus.NOT_FOUND, "Account not found"),
     CATEGORY_NOT_FOUND(HttpStatus.NOT_FOUND, "Category not found"),
     TRANSACTION_NOT_FOUND(HttpStatus.NOT_FOUND, "Transaction not found"),
@@ -48,6 +53,7 @@ public enum ErrorCode {
 
     // --- 409 -----------------------------------------------------------------
     CONFLICT(HttpStatus.CONFLICT, "Conflict"),
+    USER_EMAIL_TAKEN(HttpStatus.CONFLICT, "Email already registered"),
     DUPLICATE_RESOURCE(HttpStatus.CONFLICT, "Resource already exists"),
     CATEGORY_IN_USE(HttpStatus.CONFLICT, "Category is still in use"),
     ACCOUNT_NAME_DUPLICATE(HttpStatus.CONFLICT, "Account name already exists"),

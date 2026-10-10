@@ -1,0 +1,17 @@
+# SpendIO backend Deployment (ARCHITECTURE.md Phase 16).
+# Non-secret configuration shared by the backend and frontend.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spendio-config
+  labels:
+    app.kubernetes.io/part-of: spendio
+data:
+  SPRING_PROFILES_ACTIVE: "prod"
+  SPENDIO_JWT_KID: "v1"
+  SPENDIO_WEB_BASE_URL: "https://app.example.com"
+  SPENDIO_CORS_ALLOWED_ORIGINS: "https://app.example.com"
+  SPENDIO_MAIL_HOST: "smtp.example.com"
+  SPENDIO_MAIL_PORT: "587"
+  SPENDIO_MAIL_FROM: "SpendIO <no-reply@example.com>"
+  BACKEND_UPSTREAM: "http://spendio-backend:8080"

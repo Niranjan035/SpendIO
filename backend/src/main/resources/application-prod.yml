@@ -8,13 +8,67 @@ spring:
       minimum-idle: ${SPENDIO_DB_MIN_IDLE:5}
   jpa:
     open-in-view: false
+    properties:
+      hibernate:
+        # No SQL statistics or pretty printing in production.
+        generate_statistics: false
+  flyway:
+    # Production must never let an automated step wipe the schema.
+    clean-disabled: true
+  threads:
+    virtual:
+      enabled: true
+
+server:
+  # Behind the TLS-terminating reverse proxy: honour X-Forwarded-* for scheme/host.
+  forward-headers-strategy: framework
+  error:
+    include-message: never
+    include-stacktrace: never
+    include-binding-errors: never
 
 logging:
   level:
     root: INFO
     com.spendio: INFO
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+  metrics:
+    distribution:
+      # p50/p95/p99 (and histogram buckets) for every endpoint so the latency
+      # SLOs in docs/RUNBOOK.md and infra/monitoring/alert.rules.yml can be alerted on.
+      percentiles-histogram:
+        http.server.requests: true
+      slo:
+        http.server.requests: 50ms,100ms,250ms,500ms,1s,2s
+
 spendio:
   web:
     cors:
       allowed-origins: ${SPENDIO_CORS_ALLOWED_ORIGINS}
+  security:
+    jwt:
+      # Required in production; no default so a missing secret fails fast at startup.
+      secret: ${SPENDIO_JWT_SECRET}
+      kid: ${SPENDIO_JWT_KID:v1}
+    cookie:
+      secure: true
+    rate-limit:
+      window: ${SPENDIO_RATE_LIMIT_WINDOW:5m}
+      sensitive-requests: ${SPENDIO_RATE_LIMIT_SENSITIVE:10}
+      auth-requests: ${SPENDIO_RATE_LIMIT_AUTH:60}
+  mail:
+    enabled: true
+    from: ${SPENDIO_MAIL_FROM}
+    base-url: ${SPENDIO_WEB_BASE_URL}
+  users:
+    purge-grace-days: ${SPENDIO_PURGE_GRACE_DAYS:30}

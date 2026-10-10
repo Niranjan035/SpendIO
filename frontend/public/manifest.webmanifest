@@ -1,0 +1,17 @@
+{
+  "name": "SpendIO",
+  "short_name": "SpendIO",
+  "description": "Personal finance and expense tracker",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f8fa",
+  "theme_color": "#1f5eff",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

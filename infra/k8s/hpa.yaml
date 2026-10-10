@@ -1,0 +1,23 @@
+# SpendIO backend autoscaling (ARCHITECTURE.md Phase 16).
+# Scales on CPU; the backend is stateless (tokens are self-contained, sessions
+# live in MySQL), so replicas can be added freely.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: spendio-backend
+  labels:
+    app.kubernetes.io/part-of: spendio
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: spendio-backend
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
