@@ -100,6 +100,7 @@ public class SecurityConfig {
                         .requestMatchers("/error").permitAll()
                         .requestMatchers(HttpMethod.POST, PUBLIC_POST_ROUTES).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/currencies", "/api/v1/currencies/**").permitAll()
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(new AuthRateLimitFilter(securityProperties, objectMapper), CsrfFilter.class)
                 .addFilterAfter(new CsrfCookieFilter(csrfTokenRepository), CsrfFilter.class)
