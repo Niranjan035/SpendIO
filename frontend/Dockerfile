@@ -4,7 +4,7 @@
 #   build stage : Node 22, production bundle
 #   run  stage  : nginx serving the SPA, proxying /api to ${BACKEND_UPSTREAM}
 # ---------------------------------------------------------------------------
-FROM node:22-alpine AS build
+FROM node:26-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
