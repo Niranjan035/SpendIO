@@ -32,7 +32,7 @@
         <jackson-bom.version>3.2.3</jackson-bom.version>
         <jackson-2-bom.version>2.21.7</jackson-2-bom.version>
         <jacoco.version>0.8.15</jacoco.version>
-        <archunit.version>1.4.0</archunit.version>
+        <archunit.version>1.5.1</archunit.version>
         <jjwt.version>0.13.0</jjwt.version>
         <!-- Coverage gate: Phase 0 baseline, ratchet up with each module phase. -->
         <jacoco.line.minimum>0.55</jacoco.line.minimum>
