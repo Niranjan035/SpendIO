@@ -5,7 +5,7 @@
 #   run  stage  : minimal JRE 21, non-root user, Spring Boot layers copied in
 #                 dependency order so a code-only change rebuilds one layer.
 # ---------------------------------------------------------------------------
-FROM eclipse-temurin:21-jdk-jammy AS build
+FROM eclipse-temurin:22-jdk-jammy AS build
 WORKDIR /workspace
 
 # Wrapper + descriptor first so dependency resolution is cached between builds.
@@ -23,7 +23,7 @@ RUN ./mvnw -B -DskipTests package \
     && cp target/spendio-backend-*.jar /workspace/app.jar \
     && java -Djarmode=tools -jar /workspace/app.jar extract --layers --destination /workspace/extracted
 
-FROM eclipse-temurin:21-jre-jammy AS runtime
+FROM eclipse-temurin:22-jre-jammy AS runtime
 
 # Security: targeted patched packages from jammy-security/jammy-updates (no full upgrade,
 # base OS unchanged). Base image otherwise ships the older versions:
